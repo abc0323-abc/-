@@ -1,4 +1,4 @@
-# 언데드 마피아 — 온라인 MVP (정적 + Firebase)
+# 다이스 마피아 — 온라인 MVP (정적 + Firebase)
 
 ## 준비
 1) Firebase 프로젝트 생성

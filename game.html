@@ -1,11 +1,19 @@
 <!doctype html><html lang="ko"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>언데드 마피아 — 게임</title>
+<title>다이스 마피아 — 게임</title>
 <link rel="stylesheet" href="css/style.css">
 </head><body>
 <main class="container">
   <section class="card">
     <h2 id="roomTitle">방</h2>
+
+<div id="creator-panel" style="margin-top:8px; display:none;">
+  <label>호스트 지정:
+    <select id="hostSelect"></select>
+  </label>
+  <button id="assignHost">호스트 지정</button>
+</div>
+
     <p>단계: <strong id="phase">lobby</strong> | 낮: <strong id="day">0</strong></p>
     <div class="controls">
       <button id="assign">역할 배정</button>
@@ -16,7 +24,7 @@
     </div>
 
   <div id="nightAction" style="margin-top:8px;">
-    <input id="actionTarget" placeholder="밤 행동 대상 (이름 또는 UID)" />
+    <select id="actionTarget"><option value="">대상 선택</option></select>
     <button id="submitAction">밤 행동 제출</button>
   </div>
   </section>

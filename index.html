@@ -1,11 +1,11 @@
 <!doctype html><html lang="ko"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>언데드 마피아 — 로비</title>
+<title>다이스 마피아 — 로비</title>
 <link rel="stylesheet" href="css/style.css">
 </head><body>
 <main class="container">
   <section class="hero">
-    <h1>언데드 마피아 — 온라인 로비</h1>
+    <h1>다이스 마피아 — 온라인 로비</h1>
     <p>방을 만들거나 코드로 참가하세요.</p>
     <div class="card">
       <label>닉네임 <input id="nickname" placeholder="플레이어 이름"></label>
@@ -31,13 +31,9 @@ async function createRoom() {
   const user = await ensureAnonLogin();
   const name = $("#nickname").value.trim() || `Player-${user.uid.slice(0,5)}`;
   const col = collection(db, "rooms");
-  const ref = await addDoc(col, {
-    hostId: user.uid, phase: "lobby", createdAt: ts(), maxPlayers: 18, aliveCount: 0
+  const ref = await addDoc(col, { creator: user.uid, host: null, hostAssigned: false, phase: "lobby", createdAt: ts(), maxPlayers: 18, aliveCount: 0
   });
-  await setDoc(doc(db, "rooms", ref.id, "players", user.uid), {
-    name, role: null, alive: true, joinedAt: ts(), isHost: true
-  });
-  location.href = `game.html?room=${ref.id}`;
+location.href = `game.html?room=${ref.id}`;
 }
 
 async function joinRoom() {
