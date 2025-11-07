@@ -30,12 +30,34 @@ const msg = $("#msg");
 async function createRoom() {
   const user = await ensureAnonLogin();
   const name = $("#nickname").value.trim() || `Player-${user.uid.slice(0,5)}`;
-  const col = collection(db, "rooms");
-  const ref = await addDoc(col, { creator: user.uid, host: null, hostAssigned: false, phase: "lobby", createdAt: ts(), maxPlayers: 18, aliveCount: 0
-  });
-location.href = `game.html?room=${ref.id}`;
-}
 
+  const col = collection(db, "rooms");
+
+  // members 배열에 방 생성자(호스트)를 바로 추가
+  const initialMembers = [{
+    uid: user.uid,
+    name: name,
+    createdAt: ts(),
+    isAlive: true,
+    isHost: true
+  }];
+
+  const roomDoc = {
+    creator: user.uid,
+    host: user.uid,          // 즉시 호스트로 지정
+    members: initialMembers, // 초깃값으로 멤버 포함
+    phase: "lobby",
+    createdAt: ts(),
+    maxPlayers: 10,          // 10명으로 고정
+    aliveCount: 1
+  };
+
+  const ref = await addDoc(col, roomDoc);
+  // 방으로 이동 (생성자가 호스트로 들어간 상태)
+  location.href = `game.html?room=${ref.id}`;
+}
+$("#create").onclick = createRoom;
+  
 async function joinRoom() {
   const user = await ensureAnonLogin();
   const name = $("#nickname").value.trim() || `Player-${user.uid.slice(0,5)}`;
