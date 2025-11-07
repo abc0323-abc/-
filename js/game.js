@@ -55,8 +55,43 @@ async function init(){
     if (!snap.exists()) return;
     const r = snap.data();
     phase = r.phase || phase;
-    roomTitle.textContent = `방 코드: ${roomId} (호스트: ${String(r.hostId).slice(0,6)})`;
+    // room creator and host handling
+    const creator = r.creator || r.hostId || null;
+    const host = r.host || r.hostId || null; window._roomHost = host;
+    const hostAssigned = !!r.hostAssigned;
+    roomTitle.textContent = `방 코드: ${roomId} ${host?('(호스트: '+String(host).slice(0,6)+')'):''}`;
     phaseEl.textContent = phase;
+
+    // show creator panel if current user is the creator and host not assigned
+    const creatorPanel = document.getElementById('creator-panel');
+    if (creator && myUid === creator && !hostAssigned) {
+      if (creatorPanel) creatorPanel.style.display = 'block';
+      // populate hostSelect with current players
+      (async ()=>{
+        const ps = await getDocs(collection(db, 'rooms', roomId, 'players'));
+        const sel = document.getElementById('hostSelect');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">--선택--</option>';
+        ps.forEach(pdoc=>{
+          const p = pdoc.data();
+          const opt = document.createElement('option');
+          opt.value = pdoc.id;
+          opt.textContent = p.name + (p.isHost? ' (현재 호스트)':'');
+          sel.appendChild(opt);
+        });
+      })();
+    } else {
+      if (creatorPanel) creatorPanel.style.display = 'none';
+    }
+
+    // show host-only panels/buttons only if current user is host
+    const isHostNow = (host && myUid === host);
+    const hostControls = ['assign','toNight','resolveNight','toDay','resolveDay'];
+    hostControls.forEach(id=>{
+      const el = document.getElementById(id);
+      if (el) el.style.display = isHostNow ? 'inline-block' : 'none';
+    });
+
   });
 
   // turn/state 구독
@@ -80,17 +115,25 @@ async function init(){
     renderVote();
   });
 
-  // 플레이어 본인 문서 구독 (isHost, role 등)
+  // 플레이어 본인 문서 구독 (role 등)
   onSnapshot(doc(db, "rooms", roomId, "players", myUid), snap => {
     if (snap.exists()){
       const d = snap.data();
-      isHost = !!d.isHost;
       // my role 등은 UI에서 필요시 표시
     }
   });
 
   // 버튼 바인딩 (game.html에 버튼 id가 있어야 함)
   $("#assign")?.addEventListener("click", ()=> hostOnly(assignRoles)());
+  // creator assigns host
+  $("#assignHost")?.addEventListener("click", async ()=> {
+    const sel = document.getElementById('hostSelect');
+    if(!sel) return; const uid = sel.value; if(!uid) return alert('플레이어를 선택하세요');
+    await updateDoc(doc(db,'rooms',roomId),{ host: uid, hostAssigned: true });
+    // mark the chosen player as isHost true
+    await updateDoc(doc(db,'rooms',roomId,'players',uid),{ isHost: true });
+    alert('호스트가 지정되었습니다.');
+  });
   $("#toNight")?.addEventListener("click", ()=> hostOnly(()=>setPhase("night"))());
   $("#toDay")?.addEventListener("click", ()=> hostOnly(()=>setPhase("day"))());
   $("#resolveNight")?.addEventListener("click", ()=> hostOnly(resolveNight)());
