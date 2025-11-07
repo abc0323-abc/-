@@ -12,6 +12,70 @@ import {
 // helpers
 const $ = s => document.querySelector(s);
 
+// --- Injected helper: update UI for room and players ---
+function updateRoomUI(r){
+  const creator = r.creator || null;
+  const host = creator;
+  window._roomHost = host;
+  // room title
+  const roomTitleEl = document.getElementById('roomTitle');
+  if(roomTitleEl){
+    roomTitleEl.style.display = '';
+    roomTitleEl.textContent = '방 코드: ' + (typeof roomId !== 'undefined' ? roomId : '') + (creator ? (creator===myUid ? ' (당신은 호스트)' : ' (호스트: '+String(creator).slice(0,6)+')') : '');
+  }
+  // host indicator
+  const hi = document.getElementById('hostIndicator');
+  if(hi){
+    if(creator){
+      hi.style.display = '';
+      hi.textContent = creator===myUid ? '당신은 이 방의 호스트(방장)입니다.' : '호스트: ' + String(creator).slice(0,6);
+    } else {
+      hi.style.display = 'none';
+    }
+  }
+  // control host-only buttons visibility
+  const hostButtons = ['assign','toNight','resolveNight','toDay','resolveDay'];
+  hostButtons.forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    if(creator && myUid===creator){
+      el.style.display = '';
+      el.disabled = false;
+    } else {
+      el.style.display = 'none';
+      el.disabled = true;
+    }
+  });
+}
+
+// call updatePlayersList to render members array
+function updatePlayersList(members){
+  const host = window._roomHost || null;
+  const playersEl = document.getElementById('players');
+  if(!playersEl) return;
+  // include host in list, mark host, mark self
+  const rows = members.map(p=>{
+    const isHost = p.uid === host;
+    const me = p.uid === myUid;
+    const role = me ? ('(' + (p.role || '') + ')') : '';
+    const alive = p.alive ? '🟢' : '🔴';
+    return `<li data-uid="${p.uid}">${p.name} ${isHost?'<strong>[호스트]</strong>':''} ${alive} ${role} ${me?'<em>(나)</em>':''}</li>`;
+  });
+  playersEl.innerHTML = rows.join('\n');
+
+  // populate actionTarget select excluding host and self
+  const sel = document.getElementById('actionTarget');
+  if(sel){
+    sel.innerHTML = '<option value="">대상 선택</option>';
+    members.filter(p=> p.uid !== host && p.uid !== myUid && p.alive).forEach(p=>{
+      const opt = document.createElement('option');
+      opt.value = p.uid;
+      opt.textContent = p.name;
+      sel.appendChild(opt);
+    });
+  }
+}
+
 // UI elements (game.html에 이미 존재한다고 가정되는 아이디들)
 const roomTitle = $("#roomTitle");
 const phaseEl = $("#phase");
@@ -57,7 +121,6 @@ async function init(){
 
     // host is now fixed as the room creator
     const creator = r.creator;
-    isHost = (myUid === creator);
     const host = creator;
     window._roomHost = host;
 
@@ -242,7 +305,7 @@ async function resolveNight(){
   // 권한 체크
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   if (!roomSnap.exists()) return alert("방이 없습니다.");
-  if (roomSnap.data().creator !== myUid) return alert("호스트만 밤을 처리할 수 있습니다.");
+  if (roomSnap.data().hostId !== myUid) return alert("호스트만 밤을 처리할 수 있습니다.");
 
   const turnSnap = await getDoc(doc(db, "rooms", roomId, "state", "turn"));
   const curDay = (turnSnap.exists() && turnSnap.data().day) || 0;
@@ -359,7 +422,7 @@ function renderVote(){
 async function resolveDay(){
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   if (!roomSnap.exists()) return alert("방이 없습니다.");
-  if (roomSnap.data().creator !== myUid) return alert("호스트만 낮 처리를 할 수 있습니다.");
+  if (roomSnap.data().hostId !== myUid) return alert("호스트만 낮 처리를 할 수 있습니다.");
 
   const turnSnap = await getDoc(doc(db, "rooms", roomId, "state", "turn"));
   const curDay = (turnSnap.exists() && turnSnap.data().day) || 0;
@@ -404,26 +467,22 @@ async function resolveDay(){
 
 // --- UI 렌더링 ----------------
 function renderPlayers(){
-  const host = window._roomHost;
-  playersEl.innerHTML = members
-    .filter(p => p.uid !== host)
-    .map(p => {
-      const me = p.uid === myUid;
-      const role = me ? `(${p.role || ''})` : '';
-      return `<li>${p.name} ${p.alive?'🟢':'🔴'} ${role} ${me?'(나)':''}</li>`;
-    }).join("");
+  playersEl.innerHTML = members.map(p => `<li>${p.name} ${p.alive? "🟢":"🔴"} ${p.role? "(" + p.role + ")":""} ${p.uid===myUid?"(나)":""}</li>`).join("");
 
-  // 밤 행동 대상
-  const sel = document.getElementById('actionTarget');
-  if(sel){
-    sel.innerHTML = '<option value="">대상 선택</option>';
-    members.filter(p=>p.uid!==host && p.uid!==myUid && p.alive)
-      .forEach(p=> sel.innerHTML += `<option value="${p.uid}">${p.name}</option>`);
-  }
+  // hostSelect population (include creator)
+  const hostSel = $("#hostSelect");
+  if(hostSel){
+    hostSel && (hostSel.innerHTML = `<option value="">--호스트 선택--</option>`);
 }
 
-function hostOnly(fn){ return async ()=>{ if(!isHost) return alert("호스트만 실행 가능"); await fn(); }}
+// --- helper hostOnly
+function hostOnly(fn){ return async ()=> { if (!isHost) return alert("호스트만 실행 가능"); await fn(); } }
 
+// init
+init();
+
+// Expose some functions for Console testing
+window._um = { assignRoles, setPhase, submitNightAction, resolveNight, castVote, resolveDay };
 
 // Host controls auto-added
 if(typeof document!=='undefined'){
@@ -432,13 +491,3 @@ if(nBtn){ nBtn.onclick=async()=>{const r=await resolveNight(roomId);alert("밤 �
 const dBtn=document.getElementById("resolveDay");
 if(dBtn){ dBtn.onclick=async()=>{const r=await resolveDay(roomId);alert("낮 결과:"+JSON.stringify(r));};}
 }
-
-
-// ✅ Only show host controls to host
-db.ref('rooms/' + roomCode + '/host').on('value', snap => {
-  const isHost = snap.val() === playerId;
-  document.querySelectorAll('.host-only').forEach(el => {
-    el.style.display = isHost ? 'block' : 'none';
-  });
-});
-
