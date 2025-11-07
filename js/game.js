@@ -432,3 +432,13 @@ if(nBtn){ nBtn.onclick=async()=>{const r=await resolveNight(roomId);alert("밤 �
 const dBtn=document.getElementById("resolveDay");
 if(dBtn){ dBtn.onclick=async()=>{const r=await resolveDay(roomId);alert("낮 결과:"+JSON.stringify(r));};}
 }
+
+
+// ✅ Only show host controls to host
+db.ref('rooms/' + roomCode + '/host').on('value', snap => {
+  const isHost = snap.val() === playerId;
+  document.querySelectorAll('.host-only').forEach(el => {
+    el.style.display = isHost ? 'block' : 'none';
+  });
+});
+
