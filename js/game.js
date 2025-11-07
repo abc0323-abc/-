@@ -380,3 +380,11 @@ init();
 
 // Expose some functions for Console testing
 window._um = { assignRoles, setPhase, submitNightAction, resolveNight, castVote, resolveDay };
+
+// Host controls auto-added
+if(typeof document!=='undefined'){
+const nBtn=document.getElementById("resolveNight");
+if(nBtn){ nBtn.onclick=async()=>{const r=await resolveNight(roomId);alert("밤 결과:"+JSON.stringify(r));};}
+const dBtn=document.getElementById("resolveDay");
+if(dBtn){ dBtn.onclick=async()=>{const r=await resolveDay(roomId);alert("낮 결과:"+JSON.stringify(r));};}
+}
