@@ -18,6 +18,8 @@ function updateRoomUI(r){
   // prefer explicit host field if present (allows reassignment)
   const host = r.host || creator || null;
   window._roomHost = host;
+  try{ maybeShowDebugForHost(window._roomId || roomId); }catch(e){}
+
   // room title
   const roomTitleEl = document.getElementById('roomTitle');
   if(roomTitleEl){
@@ -155,6 +157,8 @@ async function init(){
     const creator = r.creator;
     const host = creator;
     window._roomHost = host;
+  try{ maybeShowDebugForHost(window._roomId || roomId); }catch(e){}
+
 
     // room title
     roomTitle.textContent = `방 코드: ${roomId} ${host ? `(호스트: ${host.slice(0,6)})` : ""}`;
@@ -511,6 +515,99 @@ function renderPlayers(){
 function hostOnly(fn){ return async ()=> { if (!isHost) return alert("호스트만 실행 가능"); await fn(); } }
 
 // init
+
+/* Debug panel wiring - host only. Injected by assistant. */
+function enableHostDebugPanel(roomId){
+  try{
+    const panel = document.getElementById("debugPanel");
+    const logEl = document.getElementById("debugLog");
+    const clearBtn = document.getElementById("debugClear");
+    const copyAllBtn = document.getElementById("debugCopyAll");
+    if(!panel || !logEl) return;
+
+    // show panel
+    panel.style.display = "flex";
+    panel.setAttribute("aria-hidden", "false");
+
+    // utility to append line
+    function appendLine(kind, text){
+      const div = document.createElement("div");
+      div.className = "debug-line " + (kind==="error"?"error":"log");
+      const time = new Date().toLocaleTimeString();
+      const safe = String(text);
+      div.textContent = `[${time}] ${safe}`;
+      // click-to-copy line
+      div.addEventListener("click", async ()=> {
+        try{
+          await navigator.clipboard.writeText(div.textContent);
+          // quick flash
+          const prev = div.style.backgroundColor;
+          div.style.backgroundColor = "rgba(255,255,255,0.06)";
+          setTimeout(()=> div.style.backgroundColor = prev, 300);
+        }catch(e){
+          console.warn("클립보드 복사 실패", e);
+        }
+      });
+      logEl.appendChild(div);
+      // keep scroll to bottom
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    clearBtn?.addEventListener("click", ()=> { logEl.innerHTML = ""; });
+    copyAllBtn?.addEventListener("click", async ()=>{
+      try{
+        const text = Array.from(logEl.querySelectorAll(".debug-line")).map(n=>n.textContent).join("\n");
+        await navigator.clipboard.writeText(text);
+        alert("로그가 클립보드에 복사되었습니다.");
+      }catch(e){
+        alert("복사 실패: " + e?.message);
+      }
+    });
+
+    // intercept console methods but still call originals
+    if(!window.__hostDebugPatched){
+      window.__hostDebugPatched = true;
+      const origLog = console.log.bind(console);
+      const origError = console.error.bind(console);
+      console.log = function(...args){
+        try{ appendLine("log", args.map(a=> (typeof a==="object"? JSON.stringify(a): String(a))).join(" ")); }catch(e){}
+        origLog(...args);
+      };
+      console.error = function(...args){
+        try{ appendLine("error", args.map(a=> (typeof a==="object"? JSON.stringify(a): String(a))).join(" ")); }catch(e){}
+        origError(...args);
+      };
+      // also capture console.warn/info if desired
+      const origWarn = console.warn.bind(console);
+      console.warn = function(...args){
+        try{ appendLine("log", args.map(a=> (typeof a==="object"? JSON.stringify(a): String(a))).join(" ")); }catch(e){}
+        origWarn(...args);
+      };
+    }
+  }catch(e){
+    console.error("enableHostDebugPanel 실패", e);
+  }
+}
+
+/* Call enableHostDebugPanel when room host is the current user.
+   This assumes window._roomHost and auth.currentUser are maintained elsewhere in the code.
+*/
+function maybeShowDebugForHost(roomId){
+  try{
+    const host = window._roomHost || null;
+    const myUid = auth?.currentUser?.uid;
+    if(host && myUid && host === myUid){
+      enableHostDebugPanel(roomId);
+      console.log("디버그 패널 활성화 (호스트)");
+    } else {
+      // ensure panel hidden for non-hosts
+      const panel = document.getElementById("debugPanel");
+      if(panel) { panel.style.display = "none"; panel.setAttribute("aria-hidden","true"); }
+    }
+  }catch(e){ console.error("maybeShowDebugForHost 실패", e); }
+}
+
+
 init();
 
 // Expose some functions for Console testing
