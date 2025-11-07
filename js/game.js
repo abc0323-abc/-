@@ -13,11 +13,18 @@ import {
 const $ = s => document.querySelector(s);
 
 // --- Injected helper: update UI for room and players ---
-function updateRoomUI(r){
+function updateRoomUI(r); try{ checkAndDeleteRoomIfHostGone(r, r.members || [], roomId); }catch(e){}{
   const creator = r.creator || null;
   // prefer explicit host field if present (allows reassignment)
-  const host = r.host || creator || null;
+  const host = r.host || r.creator || null;
   window._roomHost = host;
+// Hide host assignment controls if not room creator
+const myUidForCreator = auth?.currentUser?.uid;
+if(r.creator && myUidForCreator !== r.creator){
+  const hostAssignEl=document.getElementById("hostAssign");
+  if(hostAssignEl) hostAssignEl.style.display="none";
+}
+
   try{ maybeShowDebugForHost(window._roomId || roomId); }catch(e){}
 
   // room title
@@ -157,6 +164,13 @@ async function init(){
     const creator = r.creator;
     const host = creator;
     window._roomHost = host;
+// Hide host assignment controls if not room creator
+const myUidForCreator = auth?.currentUser?.uid;
+if(r.creator && myUidForCreator !== r.creator){
+  const hostAssignEl=document.getElementById("hostAssign");
+  if(hostAssignEl) hostAssignEl.style.display="none";
+}
+
   try{ maybeShowDebugForHost(window._roomId || roomId); }catch(e){}
 
 
@@ -606,6 +620,71 @@ function maybeShowDebugForHost(roomId){
     }
   }catch(e){ console.error("maybeShowDebugForHost 실패", e); }
 }
+
+
+
+/* ---------- Auto-delete room when host/creator leaves ----------
+   Behavior: When the room document indicates a host (host || creator) but that uid is no longer
+   present in the members list (or players subcollection), clients will attempt to delete the room
+   automatically and navigate remaining players back to the lobby (index.html).
+   Notes:
+   - This is a client-side attempt; deletion may fail due to Firestore rules (permission denied).
+   - If deletion fails, the client will simply alert and redirect.
+*/
+async function checkAndDeleteRoomIfHostGone(roomData, members, roomId){
+  try{
+    if(!roomData) return;
+    const hostUid = roomData.host || roomData.creator || null;
+    if(!hostUid) return;
+
+    // If host is still present in members array, do nothing
+    if(Array.isArray(members) && members.some(m=> m.uid === hostUid)) return;
+
+    // If members array not available or host not found, check players subcollection
+    let hostStillPresent = false;
+    try{
+      const colRef = collection(db, `rooms/${roomId}/players`);
+      const snap = await getDocs(colRef);
+      for(const d of snap.docs){
+        if(d.id === hostUid){ hostStillPresent = true; break; }
+      }
+    }catch(e){
+      // ignore subcollection errors
+    }
+    if(hostStillPresent) return;
+
+    // At this point, host not present according to local checks.
+    console.log("호스트 부재 감지: ", hostUid, " -> 방을 정리합니다.");
+
+    // Attempt to delete room document (and optionally cleanup). Wrap in try/catch for permission issues.
+    try{
+      await deleteDoc(doc(db, "rooms", roomId));
+      console.log("방 삭제 완료: ", roomId);
+    }catch(e){
+      console.error("방 삭제 실패 (권한문제일 수 있음):", e);
+      // If deletion fails, try to write a marker so clients can redirect, e.g., set room.closed = true
+      try{
+        await updateDoc(doc(db,"rooms",roomId), { closedByClient: hostUid });
+      }catch(e2){
+        console.error("room.closedByClient 업데이트 실패:", e2);
+      }
+    }
+
+    // Redirect remaining players to lobby with a message
+    try{
+      alert("호스트가 방을 떠나 방이 종료되었습니다. 로비로 이동합니다.");
+    }catch(e){}
+    try{ location.href = "index.html"; }catch(e){ console.log("리디렉션 실패", e); }
+
+  }catch(err){
+    console.error("checkAndDeleteRoomIfHostGone 오류:", err);
+  }
+}
+/* ---------- end auto-delete helper ---------- */
+
+
+
+
 
 
 init();
