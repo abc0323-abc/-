@@ -1,9 +1,10 @@
-// js/firebase-app.js  (모듈 파일, <script> 태그 금지)
+// js/firebase-app.js - Tablet-ready inline Firebase config (no build step required)
+// WARNING: This file contains your Firebase config including apiKey. 
+// For production, consider keeping keys out of client code and secure Firestore rules.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { getFirestore, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
-// ✅ Firebase 콘솔의 웹앱 설정값으로 교체
 const firebaseConfig = {
   apiKey: "AIzaSyCSrvcJr4jHTpXg0UHY6sDhwZpGlg_DuPE",
   authDomain: "dicemapia.firebaseapp.com",
