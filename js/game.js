@@ -15,7 +15,8 @@ const $ = s => document.querySelector(s);
 // --- Injected helper: update UI for room and players ---
 function updateRoomUI(r){
   const creator = r.creator || null;
-  const host = creator;
+  // prefer explicit host field if present (allows reassignment)
+  const host = r.host || creator || null;
   window._roomHost = host;
   // room title
   const roomTitleEl = document.getElementById('roomTitle');
@@ -38,7 +39,7 @@ function updateRoomUI(r){
   hostButtons.forEach(id=>{
     const el = document.getElementById(id);
     if(!el) return;
-    if(creator && myUid===creator){
+    if(host && myUid===host){
       el.style.display = '';
       el.disabled = false;
     } else {
@@ -49,32 +50,63 @@ function updateRoomUI(r){
 }
 
 // call updatePlayersList to render members array
-function updatePlayersList(members){
-  const host = window._roomHost || null;
+
+function updatePlayersList(members, roomId){
+  // members: array from room document if present
+  // roomId: optional, used to fetch subcollection 'players' if members not present
   const playersEl = document.getElementById('players');
   if(!playersEl) return;
-  // include host in list, mark host, mark self
-  const rows = members.map(p=>{
-    const isHost = p.uid === host;
-    const me = p.uid === myUid;
-    const role = me ? ('(' + (p.role || '') + ')') : '';
-    const alive = p.alive ? '🟢' : '🔴';
-    return `<li data-uid="${p.uid}">${p.name} ${isHost?'<strong>[호스트]</strong>':''} ${alive} ${role} ${me?'<em>(나)</em>':''}</li>`;
-  });
-  playersEl.innerHTML = rows.join('\n');
+  console.log("updatePlayersList called, members:", members);
 
-  // populate actionTarget select excluding host and self
-  const sel = document.getElementById('actionTarget');
-  if(sel){
-    sel.innerHTML = '<option value="">대상 선택</option>';
-    members.filter(p=> p.uid !== host && p.uid !== myUid && p.alive).forEach(p=>{
-      const opt = document.createElement('option');
-      opt.value = p.uid;
-      opt.textContent = p.name;
-      sel.appendChild(opt);
-    });
+  // Helper to render array of player objects {uid, name, isAlive, isHost}
+  function renderArray(arr){
+    // sort by isHost first then name
+    arr.sort((a,b)=> (b.isHost?1:0)-(a.isHost?1:0) || (a.name||"").localeCompare(b.name||""));
+    playersEl.innerHTML = arr.map(p=>{
+      const me = (auth.currentUser && auth.currentUser.uid===p.uid)?' (나)':'';
+      const hostMark = p.isHost? ' 🔱' : '';
+      const alive = (p.isAlive===false)? ' (사망)':'';
+      return `<li data-uid="${p.uid}">${escapeHtml(p.name||p.uid)}${me}${hostMark}${alive}</li>`;
+    }).join('');
   }
+
+  // escape helper
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];}); }
+
+  if(Array.isArray(members) && members.length>0){
+    renderArray(members);
+    return;
+  }
+
+  // Fallback: try to read players subcollection under rooms/{roomId}/players
+  if(!roomId) { playersEl.innerHTML = '<li>플레이어 정보 없음</li>'; return; }
+  (async ()=>{
+    try{
+      const colRef = collection(db, `rooms/${roomId}/players`);
+      const snap = await getDocs(colRef);
+      const arr = snap.docs.map(d=> ({ uid: d.id, ...(d.data()||{}) }) );
+      if(arr.length>0){
+        renderArray(arr);
+      } else {
+        // also try to see if room doc has map-like object 'playersMap'
+        const roomRef = doc(db, "rooms", roomId);
+        const rSnap = await getDoc(roomRef);
+        if(rSnap.exists()){
+          const data = rSnap.data();
+          if(data.players && typeof data.players === 'object' && !Array.isArray(data.players)){
+            const arr2 = Object.keys(data.players).map(k=> ({ uid: k, ...(data.players[k]||{}) }) );
+            if(arr2.length>0){ renderArray(arr2); return; }
+          }
+        }
+        playersEl.innerHTML = '<li>플레이어가 없습니다.</li>';
+      }
+    }catch(e){
+      console.error("플레이어 목록 조회 실패:", e);
+      playersEl.innerHTML = '<li>플레이어 불러오기 실패</li>';
+    }
+  })();
 }
+
 
 // UI elements (game.html에 이미 존재한다고 가정되는 아이디들)
 const roomTitle = $("#roomTitle");
@@ -181,7 +213,7 @@ async function init(){
   // 버튼 바인딩 (game.html에 버튼 id가 있어야 함)
   $("#assign")?.addEventListener("click", ()=> hostOnly(assignRoles)());
   // creator assigns host
-  $("#assignHost")?.addEventListener("click", async ()=> {
+  $("#assignHost")?.addEventListener("click", hostOnly(async ()=> {)
     const sel = document.getElementById('hostSelect');
     if(!sel) return; const uid = sel.value; if(!uid) return alert('플레이어를 선택하세요');
     await updateDoc(doc(db,'rooms',roomId),{ host: uid, hostAssigned: true });
