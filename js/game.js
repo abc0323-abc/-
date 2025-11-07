@@ -39,6 +39,29 @@ async function joinRoomAndRegisterPlayer(roomId, user){
 }
 const $ = s => document.querySelector(s);
 
+// ----------------------
+// Host UI / Debug helper
+// ----------------------
+function applyHostUI(isHost){
+  try{
+    // 호스트 전용 버튼 id 목록: 실제 코드의 id명과 다르면 그 id로 바꿔주세요.
+    const hostOnlyIds = ["assign","toNight","resolveNight","toDay","resolveDay"];
+    hostOnlyIds.forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.style.display = isHost ? "" : "none";
+    });
+
+    // 호스트 전용 class가 있으면 함께 숨기기
+    document.querySelectorAll('.host-only').forEach(e=> e.style.display = isHost ? "" : "none");
+
+    // 디버그 패널(이미 game.html에 있으면) 보이기/숨기기
+    const debug = document.getElementById("debugPanel");
+    if(debug) debug.style.display = isHost ? "flex" : "none";
+  }catch(e){
+    console.error("applyHostUI 오류:", e);
+  }
+}
+
 // --- Injected helper: update UI for room and players ---
 function updateRoomUI(r) {
   const creator = r.creator || null;
@@ -86,83 +109,86 @@ if(r.creator && myUidForCreator !== r.creator){
 
 // call updatePlayersList to render members array
 
+// Robust players renderer: prioritise rooms/{roomId}/players subcollection
 function updatePlayersList(members, roomId){
-  // members: array from room document if present
-  // roomId: optional, used to fetch subcollection 'players' if members not present
   const playersEl = document.getElementById('players');
-  if(!playersEl) return;
-  console.log("updatePlayersList called, members:", members);
+  const actionSel = document.getElementById('actionTarget');
+  const votePanel = document.getElementById('votePanel');
 
-  // Helper to render array of player objects {uid, name, isAlive, isHost}
-  function renderArray(arr){
-    // sort by isHost first then name
-    arr.sort((a,b)=> (b.isHost?1:0)-(a.isHost?1:0) || (a.name||"").localeCompare(b.name||""));
-    playersEl.innerHTML = arr.map(p=>{
-      const me = (auth.currentUser && auth.currentUser.uid===p.uid)?' (나)':'';
-      const hostMark = p.isHost? ' 🔱' : '';
-      const alive = (p.isAlive===false)? ' (사망)':'';
-      return `<li data-uid="${p.uid}">${escapeHtml(p.name||p.uid)}${me}${hostMark}${alive}</li>`;
-    }).join('');
-  }
-
-  // escape helper
-  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];}); }
-
-  if(Array.isArray(members) && members.length>0){
-    renderArray(members);
+  if(!roomId){
+    if(playersEl) playersEl.innerHTML = '<li>플레이어 없음</li>';
+    if(actionSel) actionSel.innerHTML = '<option value="">대상 선택</option>';
+    if(votePanel) votePanel.innerHTML = '';
     return;
-  // populate actionTarget select (exclude host and self)
-  try{
-    const sel = document.getElementById('actionTarget');
-    if(sel){
-      sel.innerHTML = '<option value=\"\">대상 선택</option>' + members
-        .filter(p => p.uid !== window._roomHost && p.uid !== (auth.currentUser && auth.currentUser.uid))
-        .map(p => `<option value=\"${p.uid}\">${escapeHtml(p.name||p.uid)}</option>`).join('');
-    }
-  }catch(e){ console.error("actionTarget populate 실패", e); }
-
-  // populate votePanel with radio buttons or simple buttons
-  try{
-    const votePanel = document.getElementById('votePanel');
-    if(votePanel){
-      votePanel.innerHTML = members.map(p=>{
-        const disabled = (p.uid === (auth.currentUser && auth.currentUser.uid)) ? ' disabled' : '';
-        return `<label style=\"margin-right:8px\"><input type=\"radio\" name=\"vote\" value=\"${p.uid}\"${disabled}> ${escapeHtml(p.name||p.uid)}</label>`;
-      }).join('');
-    }
-  }catch(e){ console.error("votePanel populate 실패", e); }
-
   }
 
-  // Fallback: try to read players subcollection under rooms/{roomId}/players
-  if(!roomId) { playersEl.innerHTML = '<li>플레이어 정보 없음</li>'; return; }
   (async ()=>{
     try{
-      const colRef = collection(db, `rooms/${roomId}/players`);
-      const snap = await getDocs(colRef);
-      const arr = snap.docs.map(d=> ({ uid: d.id, ...(d.data()||{}) }) );
-      if(arr.length>0){
-        renderArray(arr);
-      } else {
-        // also try to see if room doc has map-like object 'playersMap'
-        const roomRef = doc(db, "rooms", roomId);
-        const rSnap = await getDoc(roomRef);
-        if(rSnap.exists()){
-          const data = rSnap.data();
-          if(data.players && typeof data.players === 'object' && !Array.isArray(data.players)){
-            const arr2 = Object.keys(data.players).map(k=> ({ uid: k, ...(data.players[k]||{}) }) );
-            if(arr2.length>0){ renderArray(arr2); return; }
-          }
+      let arr = [];
+
+      // 1) Try subcollection rooms/{roomId}/players first
+      try{
+        const colRef = collection(db, `rooms/${roomId}/players`);
+        const snap = await getDocs(colRef);
+        if(snap && snap.size>0){
+          arr = snap.docs.map(d=> ({ uid: d.id, ...(d.data()||{}) }) );
         }
-        playersEl.innerHTML = '<li>플레이어가 없습니다.</li>';
+      }catch(e){ console.warn('players subcollection read failed', e); }
+
+      // 2) fallback to members array (room doc)
+      if(arr.length === 0 && Array.isArray(members) && members.length>0){
+        arr = members;
       }
+
+      // 3) fallback to room.players map
+      if(arr.length === 0){
+        try{
+          const roomRef = doc(db, 'rooms', roomId);
+          const rSnap = await getDoc(roomRef);
+          if(rSnap.exists()){
+            const data = rSnap.data();
+            if(data.players && typeof data.players === 'object' && !Array.isArray(data.players)){
+              arr = Object.keys(data.players).map(k=> ({ uid: k, ...(data.players[k]||{}) }) );
+            }
+          }
+        }catch(e){ console.warn('room.players map read failed', e); }
+      }
+
+      // render players list
+      if(playersEl){
+        if(arr.length === 0){
+          playersEl.innerHTML = '<li>플레이어 없음</li>';
+        } else {
+          playersEl.innerHTML = arr.map(p=>{
+            const me = (auth.currentUser && auth.currentUser.uid===p.uid)? ' (나)' : '';
+            const hostMark = (p.uid === window._roomHost)? ' 🔱' : '';
+            const alive = (p.isAlive===false || p.alive===false)? ' (사망)' : '';
+            return `<li data-uid="${p.uid}">${(p.name||p.uid)}${me}${hostMark}${alive}</li>`;
+          }).join('');
+        }
+      }
+
+      // fill actionTarget select (exclude host and self)
+      if(actionSel){
+        actionSel.innerHTML = '<option value="">대상 선택</option>' + arr
+          .filter(p => p.uid !== window._roomHost && p.uid !== (auth.currentUser && auth.currentUser.uid))
+          .map(p => `<option value="${p.uid}">${(p.name||p.uid)}</option>`).join('');
+      }
+
+      // fill votePanel
+      if(votePanel){
+        votePanel.innerHTML = arr.map(p=>{
+          const disabled = (p.uid === (auth.currentUser && auth.currentUser.uid)) ? ' disabled' : '';
+          return `<label style="margin-right:8px"><input type="radio" name="vote" value="${p.uid}"${disabled}> ${ (p.name||p.uid) }</label>`;
+        }).join('');
+      }
+
     }catch(e){
-      console.error("플레이어 목록 조회 실패:", e);
-      playersEl.innerHTML = '<li>플레이어 불러오기 실패</li>';
+      console.error('updatePlayersList 오류:', e);
+      if(playersEl) playersEl.innerHTML = '<li>플레이어 불러오기 실패</li>';
     }
   })();
 }
-
 
 // UI elements (game.html에 이미 존재한다고 가정되는 아이디들)
 const roomTitle = $("#roomTitle");
