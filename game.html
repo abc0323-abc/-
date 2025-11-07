@@ -41,4 +41,46 @@
 </main>
 
 <script type="module" src="js/game.js"></script>
+
+<!-- Host-only Debug Panel (injected) -->
+<style>
+#debugPanel {
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  height: 140px;
+  background: rgba(20,20,20,0.95);
+  color: #eee;
+  font-family: monospace;
+  font-size: 12px;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+  display: none; /* shown only for host */
+  z-index: 9999;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+}
+#debugPanel .debug-controls { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+#debugPanel .debug-controls button { background:#333; color:#fff; border:none; padding:6px 8px; border-radius:4px; cursor:pointer; }
+#debugPanel .debug-log { flex:1; overflow:auto; padding:4px; border-radius:4px; background: rgba(255,255,255,0.02); }
+.debug-line { padding:2px 4px; margin-bottom:2px; border-radius:3px; cursor:pointer; }
+.debug-line.log { color: #cfc; }
+.debug-line.error { color: #f88; font-weight:600; }
+.debug-line:hover { background: rgba(255,255,255,0.02); }
+.debug-copy-hint { font-size:11px; color:#aaa; margin-left:8px;}
+</style>
+
+<div id="debugPanel" aria-hidden="true">
+  <div class="debug-controls">
+    <div>📜 Debug Log</div>
+    <button id="debugClear">지우기</button>
+    <button id="debugCopyAll">전체 복사</button>
+    <div class="debug-copy-hint">(라인 클릭 시 해당 라인 복사)</div>
+  </div>
+  <div id="debugLog" class="debug-log" role="log" aria-live="polite"></div>
+</div>
+<!-- End Debug Panel -->
+
 </body></html>
