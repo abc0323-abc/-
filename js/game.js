@@ -60,6 +60,7 @@ async function init(){
     const host = r.host || r.hostId || null; window._roomHost = host;
     const hostAssigned = !!r.hostAssigned;
     roomTitle.textContent = `방 코드: ${roomId} ${host?('(호스트: '+String(host).slice(0,6)+')'):''}`;
+    window._roomCreator = r.creator;
     phaseEl.textContent = phase;
 
     // show creator panel if current user is the creator and host not assigned
@@ -413,6 +414,19 @@ async function resolveDay(){
 // --- UI 렌더링 ----------------
 function renderPlayers(){
   playersEl.innerHTML = members.map(p => `<li>${p.name} ${p.alive? "🟢":"🔴"} ${p.role? "(" + p.role + ")":""} ${p.uid===myUid?"(나)":""}</li>`).join("");
+
+  // hostSelect population (include creator)
+  const hostSel = $("#hostSelect");
+  if(hostSel){
+    hostSel.innerHTML = `<option value="">--호스트 선택--</option>`;
+    const creator = window._roomCreator || null;
+    if (creator) {
+      hostSel.innerHTML += `<option value="${creator}">(방장) 본인</option>`;
+    }
+    members.forEach(p => {
+      hostSel.innerHTML += `<option value="${p.uid}">${p.name}</option>`;
+    });
+  }
 }
 
 // --- helper hostOnly
