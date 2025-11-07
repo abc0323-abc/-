@@ -1,0 +1,60 @@
+<!doctype html><html lang="ko"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>언데드 마피아 — 로비</title>
+<link rel="stylesheet" href="css/style.css">
+</head><body>
+<main class="container">
+  <section class="hero">
+    <h1>언데드 마피아 — 온라인 로비</h1>
+    <p>방을 만들거나 코드로 참가하세요.</p>
+    <div class="card">
+      <label>닉네임 <input id="nickname" placeholder="플레이어 이름"></label>
+      <div class="cta-row">
+        <button id="create">방 만들기</button>
+        <input id="roomId" placeholder="방 코드">
+        <button id="join">참가</button>
+      </div>
+      <p class="muted" id="msg"></p>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import "./js/firebase-app.js";
+import { app, auth, db, ensureAnonLogin, ts } from "./js/firebase-app.js";
+import { doc, setDoc, getDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+const $ = s => document.querySelector(s);
+const msg = $("#msg");
+
+async function createRoom() {
+  const user = await ensureAnonLogin();
+  const name = $("#nickname").value.trim() || `Player-${user.uid.slice(0,5)}`;
+  const col = collection(db, "rooms");
+  const ref = await addDoc(col, {
+    hostId: user.uid, phase: "lobby", createdAt: ts(), maxPlayers: 18, aliveCount: 0
+  });
+  await setDoc(doc(db, "rooms", ref.id, "players", user.uid), {
+    name, role: null, alive: true, joinedAt: ts(), isHost: true
+  });
+  location.href = `game.html?room=${ref.id}`;
+}
+
+async function joinRoom() {
+  const user = await ensureAnonLogin();
+  const name = $("#nickname").value.trim() || `Player-${user.uid.slice(0,5)}`;
+  const id = $("#roomId").value.trim();
+  if (!id) return msg.textContent = "방 코드를 입력하세요.";
+  const roomRef = doc(db, "rooms", id);
+  const snap = await getDoc(roomRef);
+  if (!snap.exists()) return msg.textContent = "존재하지 않는 방입니다.";
+  await setDoc(doc(db, "rooms", id, "players", user.uid), {
+    name, role: null, alive: true, joinedAt: ts(), isHost: false
+  }, { merge: true });
+  location.href = `game.html?room=${id}`;
+}
+
+$("#create").onclick = createRoom;
+$("#join").onclick = joinRoom;
+</script>
+</body></html>

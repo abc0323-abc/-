@@ -1,0 +1,27 @@
+# Firestore Rules (Firebase Console → Firestore Database → Rules → Publish)
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function authed() { return request.auth != null; }
+    match /rooms/{roomId} {
+      allow read: if authed();
+      allow create: if authed();
+      allow update, delete: if authed() && request.resource.data.hostId == request.auth.uid;
+      match /players/{uid} {
+        allow read: if authed();
+        allow create, update: if authed() && (
+          uid == request.auth.uid ||
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == request.auth.uid
+        );
+        allow delete: if authed() && (
+          uid == request.auth.uid ||
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == request.auth.uid
+        );
+      }
+      match /{sub=state|logs}/{docId} {
+        allow read: if authed();
+        allow write: if authed();
+      }
+    }
+  }
+}

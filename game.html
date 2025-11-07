@@ -1,0 +1,30 @@
+<!doctype html><html lang="ko"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>언데드 마피아 — 게임</title>
+<link rel="stylesheet" href="css/style.css">
+</head><body>
+<main class="container">
+  <section class="card">
+    <h2 id="roomTitle">방</h2>
+    <p>단계: <strong id="phase">lobby</strong> | 낮: <strong id="day">0</strong></p>
+    <div class="cta-row">
+      <button id="assign">역할 배정(호스트)</button>
+      <button id="toNight">밤 시작(호스트)</button>
+      <button id="toDay">낮 시작(호스트)</button>
+    </div>
+  </section>
+
+  <section class="grid">
+    <article class="card">
+      <h3>플레이어</h3>
+      <ul id="players"></ul>
+    </article>
+    <article class="card">
+      <h3>투표</h3>
+      <div id="votePanel"></div>
+    </article>
+  </section>
+</main>
+
+<script type="module" src="js/game.js"></script>
+</body></html>
