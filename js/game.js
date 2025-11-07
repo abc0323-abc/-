@@ -6,14 +6,41 @@
 import { auth, db, ensureAnonLogin, ts } from "./firebase-app.js";
 import {
   doc, collection, getDoc, getDocs, setDoc, updateDoc, addDoc, deleteDoc,
-  onSnapshot, query, where, serverTimestamp, orderBy
+  onSnapshot, query, where, serverTimestamp, orderBy, increment
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 // helpers
+
+
+// Register current user as a player in rooms/{roomId}/players
+async function joinRoomAndRegisterPlayer(roomId, user){
+  try{
+    if(!roomId || !user || !user.uid) return;
+    const uid = user.uid;
+    const name = (user.displayName) ? user.displayName : (`Player-${String(uid).slice(0,6)}`);
+    const playerRef = doc(db, "rooms", roomId, "players", uid);
+    await setDoc(playerRef, {
+      uid: uid,
+      name: name,
+      isAlive: true,
+      joinedAt: serverTimestamp()
+    });
+    // increment aliveCount in room doc, use increment for concurrency
+    try{
+      await updateDoc(doc(db, "rooms", roomId), { aliveCount: increment(1) });
+    }catch(e){
+      // log but continue
+      console.warn("aliveCount increment failed:", e);
+    }
+    console.log("플레이어 등록 완료:", uid, name);
+  }catch(e){
+    console.error("joinRoomAndRegisterPlayer 실패:", e);
+  }
+}
 const $ = s => document.querySelector(s);
 
 // --- Injected helper: update UI for room and players ---
-function updateRoomUI(r); try{ updatePlayersList((r && r.members) ? r.members : [], window._roomId || roomId); }catch(e){}; try{ checkAndDeleteRoomIfHostGone(r, r.members || [], roomId); }catch(e){}{
+function updateRoomUI(r) {
   const creator = r.creator || null;
   // prefer explicit host field if present (allows reassignment)
   const host = (r && r.creator) ? r.creator : null;
@@ -84,6 +111,27 @@ function updatePlayersList(members, roomId){
   if(Array.isArray(members) && members.length>0){
     renderArray(members);
     return;
+  // populate actionTarget select (exclude host and self)
+  try{
+    const sel = document.getElementById('actionTarget');
+    if(sel){
+      sel.innerHTML = '<option value=\"\">대상 선택</option>' + members
+        .filter(p => p.uid !== window._roomHost && p.uid !== (auth.currentUser && auth.currentUser.uid))
+        .map(p => `<option value=\"${p.uid}\">${escapeHtml(p.name||p.uid)}</option>`).join('');
+    }
+  }catch(e){ console.error("actionTarget populate 실패", e); }
+
+  // populate votePanel with radio buttons or simple buttons
+  try{
+    const votePanel = document.getElementById('votePanel');
+    if(votePanel){
+      votePanel.innerHTML = members.map(p=>{
+        const disabled = (p.uid === (auth.currentUser && auth.currentUser.uid)) ? ' disabled' : '';
+        return `<label style=\"margin-right:8px\"><input type=\"radio\" name=\"vote\" value=\"${p.uid}\"${disabled}> ${escapeHtml(p.name||p.uid)}</label>`;
+      }).join('');
+    }
+  }catch(e){ console.error("votePanel populate 실패", e); }
+
   }
 
   // Fallback: try to read players subcollection under rooms/{roomId}/players
@@ -181,6 +229,10 @@ if(r.creator && myUidForCreator !== r.creator){
       const btn = document.getElementById(id);
         if(btn) btn.style.display = (myUid === creator) ? "inline-block" : "none";
     });
+
+    // render players list and related selects (actionTarget, votePanel)
+    try{ updatePlayersList((r && r.members) ? r.members : [], roomId); }catch(e){ console.error('updatePlayersList 호출 실패', e); }
+
 });
       })();
     } else {
