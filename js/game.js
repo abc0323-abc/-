@@ -54,32 +54,22 @@ async function init(){
   onSnapshot(doc(db, "rooms", roomId), snap => {
     if (!snap.exists()) return;
     const r = snap.data();
-    phase = r.phase || phase;
-    // room creator and host handling
-    const creator = r.creator || r.hostId || null;
-    const host = r.host || r.hostId || null; window._roomHost = host;
-    const hostAssigned = !!r.hostAssigned;
-    roomTitle.textContent = `방 코드: ${roomId} ${host?('(호스트: '+String(host).slice(0,6)+')'):''}`;
-    window._roomCreator = r.creator;
-    phaseEl.textContent = phase;
 
-    // show creator panel if current user is the creator and host not assigned
-    const creatorPanel = document.getElementById('creator-panel');
-    if (creator && myUid === creator && !hostAssigned) {
-      if (creatorPanel) creatorPanel.style.display = 'block';
-      // populate hostSelect with current players
-      (async ()=>{
-        const ps = await getDocs(collection(db, 'rooms', roomId, 'players'));
-        const sel = document.getElementById('hostSelect');
-        if (!sel) return;
-        sel.innerHTML = '<option value="">--선택--</option>';
-        ps.forEach(pdoc=>{
-          const p = pdoc.data();
-          const opt = document.createElement('option');
-          opt.value = pdoc.id;
-          opt.textContent = p.name + (p.isHost? ' (현재 호스트)':'');
-          sel.appendChild(opt);
-        });
+    // host is now fixed as the room creator
+    const creator = r.creator;
+    const host = creator;
+    window._roomHost = host;
+
+    // room title
+    roomTitle.textContent = `방 코드: ${roomId} ${host ? `(호스트: ${host.slice(0,6)})` : ""}`;
+
+    // creator-panel removed in this version; control host button visibility based on creator
+    const hostButtons = ["assign","toNight","resolveNight","toDay","resolveDay"];
+    hostButtons.forEach(id => {
+      const btn = document.getElementById(id);
+        if(btn) btn.style.display = (myUid === creator) ? "inline-block" : "none";
+    });
+});
       })();
     } else {
       if (creatorPanel) creatorPanel.style.display = 'none';
@@ -418,15 +408,7 @@ function renderPlayers(){
   // hostSelect population (include creator)
   const hostSel = $("#hostSelect");
   if(hostSel){
-    hostSel.innerHTML = `<option value="">--호스트 선택--</option>`;
-    const creator = window._roomCreator || null;
-    if (creator) {
-      hostSel.innerHTML += `<option value="${creator}">(방장) 본인</option>`;
-    }
-    members.forEach(p => {
-      hostSel.innerHTML += `<option value="${p.uid}">${p.name}</option>`;
-    });
-  }
+    hostSel && (hostSel.innerHTML = `<option value="">--호스트 선택--</option>`);
 }
 
 // --- helper hostOnly
