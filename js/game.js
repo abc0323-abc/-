@@ -13,16 +13,15 @@ import {
 const $ = s => document.querySelector(s);
 
 // --- Injected helper: update UI for room and players ---
-function updateRoomUI(r); try{ checkAndDeleteRoomIfHostGone(r, r.members || [], roomId); }catch(e){}{
+function updateRoomUI(r); try{ updatePlayersList((r && r.members) ? r.members : [], window._roomId || roomId); }catch(e){}; try{ checkAndDeleteRoomIfHostGone(r, r.members || [], roomId); }catch(e){}{
   const creator = r.creator || null;
   // prefer explicit host field if present (allows reassignment)
-  const host = r.host || r.creator || null;
+  const host = (r && r.creator) ? r.creator : null;
   window._roomHost = host;
 // Hide host assignment controls if not room creator
 const myUidForCreator = auth?.currentUser?.uid;
 if(r.creator && myUidForCreator !== r.creator){
-  const hostAssignEl=document.getElementById("hostAssign");
-  if(hostAssignEl) hostAssignEl.style.display="none";
+  /* hostAssign UI removed */
 }
 
   try{ maybeShowDebugForHost(window._roomId || roomId); }catch(e){}
@@ -167,8 +166,7 @@ async function init(){
 // Hide host assignment controls if not room creator
 const myUidForCreator = auth?.currentUser?.uid;
 if(r.creator && myUidForCreator !== r.creator){
-  const hostAssignEl=document.getElementById("hostAssign");
-  if(hostAssignEl) hostAssignEl.style.display="none";
+  /* hostAssign UI removed */
 }
 
   try{ maybeShowDebugForHost(window._roomId || roomId); }catch(e){}
