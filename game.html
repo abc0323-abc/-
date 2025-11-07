@@ -1,45 +1,49 @@
-<!doctype html><html lang="ko"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>다이스 마피아 — 게임</title>
-<link rel="stylesheet" href="css/style.css">
-</head><body>
-<main class="container">
-  <section class="card">
-    <h2 id="roomTitle">방</h2>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>다이스 마피아</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+  <h1>다이스 마피아</h1>
 
-<div id="creator-panel" style="margin-top:8px; display:none;">
-  <label>호스트 지정:
-    <select id="hostSelect"></select>
-  </label>
-  <button id="assignHost">호스트 지정</button>
-</div>
+  <h2 id="roomTitle"></h2>
 
-    <p>단계: <strong id="phase">lobby</strong> | 낮: <strong id="day">0</strong></p>
-    <div class="controls">
-      <button id="assign">역할 배정</button>
-      <button id="toNight">밤 시작</button>
-      <button id="resolveNight">밤 처리</button>
-      <button id="toDay">낮 시작</button>
-      <button id="resolveDay">낮 처리</button>
-    </div>
+  <!-- ✅ 방 생성자만 보이는 호스트 지정 UI -->
+  <div id="creator-panel" style="margin-top:8px; display:none;">
+    <label>호스트 지정:
+      <select id="hostSelect"></select>
+    </label>
+    <button id="assignHost">호스트 지정</button>
+  </div>
 
-  <div id="nightAction" style="margin-top:8px;">
+  <div>
+    <h3>플레이어 목록</h3>
+    <ul id="players"></ul>
+  </div>
+
+  <div>
+    <h3>게임 상태: <span id="phase">대기중</span></h3>
+  </div>
+
+  <!-- ✅ 호스트 전용 버튼(일반 플레이어에겐 숨김) -->
+  <div id="hostButtons">
+    <button id="assign">역할 배정</button>
+    <button id="toNight">밤 시작</button>
+    <button id="resolveNight">밤 결과 처리</button>
+    <button id="toDay">낮 시작</button>
+    <button id="resolveDay">낮 결과 처리</button>
+  </div>
+
+  <div>
+    <h3>밤 행동</h3>
+    <!-- ✅ 대상 선택을 드롭다운으로 변경 -->
     <select id="actionTarget"><option value="">대상 선택</option></select>
     <button id="submitAction">밤 행동 제출</button>
   </div>
-  </section>
 
-  <section class="grid">
-    <article class="card">
-      <h3>플레이어</h3>
-      <ul id="players"></ul>
-    </article>
-    <article class="card">
-      <h3>투표</h3>
-      <div id="votePanel"></div>
-    </article>
-  </section>
-</main>
-
-<script type="module" src="js/game.js"></script>
-</body></html>
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
