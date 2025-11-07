@@ -225,11 +225,14 @@ if(r.creator && myUidForCreator !== r.creator){
 
     // creator-panel removed in this version; control host button visibility based on creator
     const hostButtons = ["assign","toNight","resolveNight","toDay","resolveDay"];
+    const curUid = auth?.currentUser?.uid || null;
     hostButtons.forEach(id => {
       const btn = document.getElementById(id);
-        if(btn) btn.style.display = (myUid === creator) ? "inline-block" : "none";
+      if(btn) btn.style.display = (curUid === creator) ? "inline-block" : "none";
     });
 
+    // render players and action targets
+    try{ updatePlayersList((r && r.members) ? r.members : [], roomId); }catch(e){ console.error('updatePlayersList 호출 실패', e); }
     // render players list and related selects (actionTarget, votePanel)
     try{ updatePlayersList((r && r.members) ? r.members : [], roomId); }catch(e){ console.error('updatePlayersList 호출 실패', e); }
 
